@@ -24,7 +24,7 @@ class DQN(Model):
         return y_hat  # y_hat은 텐서 (-1x2)
 
 model = DQN()
-model.load_weights("model")  # 경로 항상 유의 (경로 기준은 터미널)
+model.load_weights("cartpole/model")  # 경로 항상 유의 (경로 기준은 터미널)
 
 env = gym.make('CartPole-v1', render_mode="human")
 state, info = env.reset()

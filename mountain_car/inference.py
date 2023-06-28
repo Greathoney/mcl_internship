@@ -26,6 +26,7 @@ class DQN(Model):
     def remember(self, state, action, reward, next_state, done):
         self.replay_memory.append((state, action, reward, next_state, done))
 
+
 env = gym.make('MountainCar-v0', render_mode="human")
 
 model = DQN(env.observation_space.shape[0], env.action_space.n)
