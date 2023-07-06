@@ -17,7 +17,8 @@ observation space는 3개의 실수형 자료형으로 구성되어 있다.
 
 ### (3) reward
 보상 함수는 아래 수식과 같이 각도, 각속도, 그리고 회전력을 통해 계산된다. 거꾸로 잘 세워질수록, 각속도가 낮을수록 그리고 가해지는 회전력이 약할 수록 좋은 보상을 받을 수 있다. 가장 좋을 때 보상은 0이다.
-$$
+$$0.23
+
 r = -\theta^2 - 0.1\dot{\theta}^2 - 0.001\tau^2
 $$
 <br>
@@ -175,19 +176,20 @@ def update_model(model: DQN):
 
 
 ### 3-4. 학습 코드 구현
-학습 코드에서는 10개의 에피소드마다 모델이 어떻게 동작하는지 보기 위해 `gym.make`코드를 추가적으로 넣었다. 매 에피소드는 500스텝이 넘으면 종료하게 설계했다. `env.step`에 들어가는 수는 action의 인덱스를 실질적인 action의 수로 바꿀 수 있도록 설계했다. 그리고 reward 함수가 많은 우여곡절이 있었는데, 이것은 나중에 설명할 수 있도록 한다. 중력가속도는 5로 설정했다.
+학습 코드에서는 10개의 에피소드마다 모델이 어떻게 동작하는지 보기 위해 `gym.make`코드를 추가적으로 넣었다. 매 에피소드는 500스텝이 넘으면 종료하게 설계했다. `env.step`에 들어가는 수는 action의 인덱스를 실질적인 action의 수로 바꿀 수 있도록 설계했다. 그리고 reward 함수가 많은 우여곡절이 있었는데, 이것은 나중에 설명할 수 있도록 한다. 중력가속도는 10으로 설정했다. (중력가속도 5와 10은 큰 차이가 없다.)
 
 <details>
 <summary>코드 보기</summary>
 <div markdown="1">
 
 ```python
-gravity = 5
+gravity = 10
 # env = gym.make("Pendulum-v1", g=9.81, render_mode="human")
 env = gym.make("Pendulum-v1", g=gravity, render_mode="human")
 model = DQN(3, 9)
+model.load_weights("model_final")
 
-for episode in range(1000):
+for episode in range(50):
     if episode % 10 == 0:
         env = gym.make("Pendulum-v1", g=gravity, render_mode="human")
     else:
@@ -212,32 +214,47 @@ for episode in range(1000):
 
         if next_state[0] > 0.985 and abs(next_state[2]) < 0.2:
             nice_state = True
-            reward += 50  # type: ignore
+            reward += 50
         elif nice_state:
             nice_state = False
-            reward -= 50  # type: ignore
+            reward -= 100
 
         if next_state[0] > 0.9:
             if next_state[0] < state[0]:
-                if abs(next_state[2]) > abs(state[2]):
-                    reward -= 10  # type: ignore
-            if next_state[0] > state[0]:
-                reward += 10  # type: ignore
-
-
+                if next_state[1] > 0:
+                    if next_state[2] > state[2]:
+                        reward -= 20
+                    else:
+                        reward += 10
+                else:
+                    if next_state[2] < state[2]:
+                        reward -= 20
+                    else:
+                        reward += 10
+            else:
+                reward += 5
+        
+        elif next_state[0] < 0:
+            if next_state[1] > 0 and next_state[2] > 0:
+                if action > 4:
+                    reward += 2
+            elif next_state[1] < 0 and next_state[2] < 0:
+                if action < 4:
+                    reward += 2
+        
         # 리플레이 버퍼에 기억
         model.remember(state, action, reward, next_state)
         
         # 모델 업데이트
-        if step % 50 == 0:
-            update_model(model)
+        # if step % 50 == 0:
+        update_model(model)
 
         state = next_state
         step += 1
 
         rewards.append(reward)
 
-    if episode % 10 == 0:
+    if episode % 5 == 0:
         draw_qvalue(model, episode)
     
     print("Episode: {}, Steps: {}, Score: {:.2f}, Last Score: {:.2f}".format(episode, step, sum(rewards) / len(rewards), sum(rewards[-10:])/10))
@@ -251,9 +268,9 @@ env.close()
 
 
 ### 3-5. 데이터 시각화
-조금 더 데이터를 잘 분석하기 위해 draw_qvalue라는 것이 있는데, 모든 state에 대해 각 action마다 어떤 선택을 나타내는지 확인하기 위해 만들었다. 이렇게 하면 학습의 정도를 파악하고 현재 모델이 수렴하는지 발산하는지에 대해 확인을 할 수 있다. 각각의 그래프는 action에 대한 확률 선택 정도이고 밝으면 밝을수록 해당 state에 대해 그 action을 선택할 확률이 높다는 것을 의미한다. 가로축은 막대기의 각속도고 세로축은 막대기의 각을 의미한다. $theta$가 0이면 현재 거꾸로 잘 서있는 형태이고 3.1 또는 -3.1 부근이면 막대가 아래로 떨어지는 형태이다.
+데이터를 보다 더 잘 분석하기 위해 모든 state에 대해 각 action마다 어떤 선택을 나타내는지 확인하기 위해 만들었다. 이렇게 하면 학습의 정도를 파악하고 학습 경과시간에 따라 현재 모델이 수렴하는지 발산하는지에 대해 확인을 할 수 있다. 각각의 그래프는 action에 대한 확률 선택 정도이고 밝으면 밝을수록 해당 state에 대해 그 action을 선택할 확률이 높다는 것을 의미한다. 가로축은 막대기의 각속도고 세로축은 막대기의 각을 의미한다. $\theta$가 0이면 현재 거꾸로 잘 서있는 형태이고 3.1 또는 -3.1 부근이면 막대가 아래로 떨어지는 형태이다.
 
-![image](./model8_image/episode_20.png)
+![episode_10](model_final_image/episode_10.png)
 
 <details>
 <summary>코드 보기</summary>
@@ -296,50 +313,95 @@ def draw_qvalue(model, episode):
 <br>
 
 ### 3-6. 실행 결과
-에피소드는 500번 실행했다. 학습하는데 1시간 정도 소요되었다. 성공할 때도 있고, 실패할 때도 있지만 에피소드가 증가하면 증가할수록 거꾸로 세우는 확률이 높다. 실패 요인으로서는 막대기가 떨어진채 좌우로 흔들리다가 끝나는 경우고 잘 세운 막대기가 떨어지는 경우는 없는 것 같다.
+에피소드는 50번 실행했다. 학습하는데 30분 정도 소요되었다. 성공할 때도 있고, 실패할 때도 있지만 에피소드가 증가하면 증가할수록 거꾸로 세우는 확률이 높다. 실패 요인으로서는 완전히 정지 상태일 때 action을 하지 않는 모습을 보이고 잘 세운 막대기가 떨어지는 경우는 없는 것 같다. 아마 수렴을 덜 한 것 같다.
 
 ```
-Episode: 0, Steps: 500, Score: -6.26, Last Score: -8.62
-Episode: 1, Steps: 500, Score: -5.12, Last Score: -4.40
-Episode: 2, Steps: 500, Score: -3.70, Last Score: 6.68
-Episode: 3, Steps: 500, Score: -5.41, Last Score: -3.67
-Episode: 4, Steps: 500, Score: -7.63, Last Score: -4.67
-Episode: 5, Steps: 500, Score: -5.48, Last Score: -5.11
-Episode: 6, Steps: 500, Score: -5.92, Last Score: -1.62
-Episode: 7, Steps: 500, Score: -6.14, Last Score: -5.19
-Episode: 8, Steps: 500, Score: -6.36, Last Score: -3.88
-Episode: 9, Steps: 500, Score: -7.99, Last Score: -7.33
-Episode: 10, Steps: 500, Score: -8.37, Last Score: -8.71
+EEpisode: 0, Steps: 500, Score: -5.27, Last Score: -4.74
+Episode: 1, Steps: 500, Score: -6.80, Last Score: -7.74
+Episode: 2, Steps: 500, Score: -7.37, Last Score: -7.60
+Episode: 3, Steps: 500, Score: -7.01, Last Score: -8.29
+Episode: 4, Steps: 500, Score: -5.29, Last Score: -7.81
+Episode: 5, Steps: 500, Score: -5.85, Last Score: -6.89
+Episode: 6, Steps: 500, Score: -5.18, Last Score: -4.11
+Episode: 7, Steps: 500, Score: -6.37, Last Score: -5.37
 ...
-Episode: 480, Steps: 500, Score: 46.00, Last Score: 54.00
-Episode: 481, Steps: 500, Score: 45.98, Last Score: 51.99
-Episode: 482, Steps: 500, Score: 43.84, Last Score: 43.00
-Episode: 483, Steps: 500, Score: 42.57, Last Score: 45.00
-Episode: 484, Steps: 500, Score: 50.41, Last Score: 53.00
-Episode: 485, Steps: 500, Score: 51.01, Last Score: 53.00
-Episode: 486, Steps: 500, Score: 42.23, Last Score: 53.00
-Episode: 487, Steps: 500, Score: 44.40, Last Score: 51.00
-Episode: 488, Steps: 500, Score: 45.80, Last Score: 50.99
-Episode: 489, Steps: 500, Score: 51.90, Last Score: 49.00
-Episode: 490, Steps: 500, Score: 41.54, Last Score: 55.00
-Episode: 491, Steps: 500, Score: 43.97, Last Score: 54.00
-Episode: 492, Steps: 500, Score: 42.59, Last Score: 52.00
-Episode: 493, Steps: 500, Score: 37.19, Last Score: 50.00
-Episode: 494, Steps: 500, Score: 38.01, Last Score: 54.00
-Episode: 495, Steps: 500, Score: 42.08, Last Score: 55.00
-Episode: 496, Steps: 500, Score: -5.71, Last Score: -7.12
-Episode: 497, Steps: 500, Score: -6.01, Last Score: -4.33
-Episode: 498, Steps: 500, Score: -5.77, Last Score: -8.26
-Episode: 499, Steps: 500, Score: -5.96, Last Score: -3.86
-Episode: 500, Steps: 500, Score: -6.09, Last Score: -7.18
+Episode: 42, Steps: 500, Score: -6.51, Last Score: -7.04
+Episode: 43, Steps: 500, Score: 33.19, Last Score: 42.49
+Episode: 44, Steps: 500, Score: -5.00, Last Score: -3.51
+Episode: 45, Steps: 500, Score: 38.50, Last Score: 37.48
+Episode: 46, Steps: 500, Score: 45.51, Last Score: 52.99
+Episode: 47, Steps: 500, Score: 42.87, Last Score: 55.00
+Episode: 48, Steps: 500, Score: -4.81, Last Score: -6.10
+Episode: 49, Steps: 500, Score: -5.01, Last Score: -5.04
+Episode: 50, Steps: 500, Score: 23.11, Last Score: 42.50
 ```
-![episode_0](model8_image/episode_500.png)
+![episode_0](model_final_image/episode_0.png)
+![episode_5](model_final_image/episode_5.png)
+![episode_10](model_final_image/episode_10.png)
+![episode_15](model_final_image/episode_15.png)
+![episode_20](model_final_image/episode_20.png)
+![episode_25](model_final_image/episode_25.png)
+![episode_30](model_final_image/episode_30.png)
+![episode_35](model_final_image/episode_35.png)
+![episode_40](model_final_image/episode_40.png)
+![episode_45](model_final_image/episode_45.png)
+![episode_50](model_final_image/episode_50.png)
 
 ### 3-7. 모델 저장 및 인퍼런스
+모델을 저장하고 인퍼런스를 실행하여 학습할 때와 같이 잘 실행이 될 때도 있었지만, 가끔 swing을 하지 않는 잘못된 action을 하는 경우도 존재했다.
+
+![gif](Animation_final.gif)
 
 ## 4. 우여곡절
 
-### 4-1. 보상 함수 설계
-기본으로 주어져 있는 보상 함수가 있지만, DQN 모델에서는 이것이 잘 어울리지 않는 모습이다. 
+### 4-1. DQN과 continuous한 action
+해보면 알겠지만, continuous한 action의 경우 target_y를 정의하는 부분에서 문제가 발생한다. 이는 continuous한 action을 discrete한 action으로 바꾸어서 해결할 수 있다. 이를 위해 action을 9개로 나누어서 해결하였다.
+
+### 4-2. 보상 함수 설계
+기본으로 주어져 있는 보상 함수가 있지만, DQN 모델에서는 잘 학습이 되지 않는 것 같다. 그래서 기존 보상 함수에 특별 보상을 추가하였다. 특별 보상은 다음과 같이 설계하였다.
+* 막대기가 세워져 있고 균형을 유지하면 +50의 reward
+* 균형을 잘 유지하고 있다가 막대기가 넘어지면 -100의 reward
+* 막대기가 거의 세웠을 때 (x좌표가 0.9 이상)
+  * 높이가 증가하면 +5의 리워드
+  * 높이가 낮아지고 있을 때
+    * 중심 방향에 맞게 가속되면 +10의 reward
+    * 떨어지는 방향으로 가속하면 -20의 reward
+* 막대기가 바닥에 있을 때
+  * 중심 방향에 맞게 가속되면 +2의 reward
+
+```python
+if next_state[0] > 0.985 and abs(next_state[2]) < 0.2:
+    nice_state = True
+    reward += 50
+elif nice_state:
+    nice_state = False
+    reward -= 100
+
+if next_state[0] > 0.9:
+    if next_state[0] < state[0]:
+        if next_state[1] > 0:
+            if next_state[2] > state[2]:
+                reward -= 20
+            else:
+                reward += 10
+        else:
+            if next_state[2] < state[2]:
+                reward -= 20
+            else:
+                reward += 10
+    else:
+        reward += 5
+
+elif next_state[0] < 0:
+    if next_state[1] > 0 and next_state[2] > 0:
+        if action > 4:
+            reward += 2
+    elif next_state[1] < 0 and next_state[2] < 0:
+        if action < 4:
+            reward += 2
+```
+
+물론 여러 차례의 다른 방법으로도 시도를 해봤고 이렇게 복잡하게 하지 않아도 어느정도 목표치에 잘 도달할 수 있었다. 막대기에 잘 올릴 수 있도록 보상함수를 설계하려면 state가 어떻게 변화하면서 목표치에 달성해야 되는지 고민하면서 reward 함수를 설계하면 된다. 
 
 ## 5. 결론
+이번에 데이터 시각화까지 수행하면서 DQN에서 사용되는 인공신경망과 업데이트 하는 방식 및 전체적인 흐름을 잘 이해할 수 있었다.

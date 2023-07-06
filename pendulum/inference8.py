@@ -20,7 +20,7 @@ class DQN(Model):
         self.dense4 = Dense(32, activation="relu")
         self.dense5 = Dense(action_size, activation="softmax")
 
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+        self.optimizer = tf.keras.optimizers.legacy.Adam(learning_rate=0.001)
 
     def call(self, x):
         x = self.dense1(x)
@@ -36,7 +36,7 @@ class DQN(Model):
 
 
 model = DQN(3, 9)
-model.load_weights("pendulum/model8")
+model.load_weights("pendulum/model10")
 
 env = gym.make("Pendulum-v1", render_mode="human")
 
@@ -48,9 +48,10 @@ for episode in range(10):
     step = 0
 
     rewards = []
+
     before_reward = None
 
-    while not terminated and step < 1000:
+    while not terminated and step < 200:
 
         # 모델로 행동 예측
         action = model.call(np.array([state])).numpy()[0]  # type: ignore
@@ -67,6 +68,8 @@ for episode in range(10):
         step += 1
 
         rewards.append(reward)
+
+        print(next_state)
     
     print("Episode: {}, Steps: {}, Score: {:.2f}, Last Score: {:.2f}".format(episode, step, sum(rewards) / len(rewards), sum(rewards[-10:])/10))
 
