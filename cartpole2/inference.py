@@ -30,8 +30,8 @@ class DQN(Model):
 model_left = DQN()
 model_right = DQN()
 
-model_left.load_weights('cartpole2/model_left')
-model_right.load_weights('cartpole2/model_right')
+model_left.load_weights('cartpole2/model_left2')
+model_right.load_weights('cartpole2/model_right2')
 
 model = {
     'left': model_left,

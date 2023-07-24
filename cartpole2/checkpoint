@@ -1,0 +1,2 @@
+model_checkpoint_path: "model_right2"
+all_model_checkpoint_paths: "model_right2"
