@@ -61,7 +61,7 @@ for episode in range(10):
             print("Episode {} done after {} steps \n".format(episode, step))
             break
 
-        stable_condition = np.all(abs(np.array(next_state[1:])) < 0.1)
+        stable_condition = np.all(abs(np.array(next_state[1:])) < 0.2)
 
         if dir == 'left' and next_state[0] < -0.8 and stable_condition:
             dir = 'right'
